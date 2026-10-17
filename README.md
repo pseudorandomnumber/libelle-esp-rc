@@ -2,6 +2,8 @@
 
 Web Bluetooth remote control for the Libelle dragonfly ornithopter (ESP32-C3 bench firmware).
 
+**Open the app: https://pseudorandomnumber.github.io/libelle-esp-rc/**
+
 Open the page in Chrome on Android or on a computer, tap **Connect** and pick `Libelle-XXXX`.
 iPhone: use the Bluefy browser.
 
