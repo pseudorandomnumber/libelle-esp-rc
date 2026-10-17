@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f1316">
+<title>Libelle Control</title>
+<style>
+  :root {
+    --bg: #0f1316; --panel: #182027; --panel2: #1f2932; --line: #2b3741;
+    --text: #e6edf3; --muted: #8b98a5; --accent: #3fb6a8; --accent-dim: #24675f;
+    --warn: #e3a33b; --danger: #e5534b; --ok: #57c26b; --knob: 56px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: 12px 16px 24px; max-width: 1100px; margin: 0 auto; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent-dim); border-color: var(--accent); }
+
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0 auto 0 0; letter-spacing: .5px; }
+  header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+  #lang { padding: 8px 10px; min-width: 48px; }
+
+  #banner { display: none; margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+    background: #3a2a14; border: 1px solid var(--warn); }
+
+  .telemetry { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 12px 0; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .tile .label { color: var(--muted); font-size: 12px; }
+  .tile .value { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .tile.warn .value { color: var(--warn); }
+  .tile.danger .value { color: var(--danger); }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; min-height: 26px; }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.ok { color: var(--ok); border-color: var(--ok); }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
+  .badge.danger { color: var(--danger); border-color: var(--danger); }
+
+  .controls { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: stretch; }
+  .center { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .arm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #arm, #stop { padding: 18px 10px; font-size: 18px; font-weight: 600; border-radius: 14px; }
+  #arm.on { background: #5a2420; border-color: var(--danger); }
+  #stop { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .hint { color: var(--muted); font-size: 13px; min-height: 18px; }
+
+  .slider { position: relative; touch-action: none; user-select: none; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .slider.vertical { width: 96px; height: min(58vh, 440px); min-height: 260px; }
+  .slider.horizontal { height: 96px; width: 100%; }
+  .slider.small { height: 64px; }
+  .slider .fill { position: absolute; background: var(--accent-dim); }
+  .slider .knob { position: absolute; width: var(--knob); height: var(--knob); border-radius: 50%;
+    background: var(--accent); box-shadow: 0 2px 10px #0008; pointer-events: none; }
+  .slider.vertical .knob { left: 50%; transform: translate(-50%, 50%); }
+  .slider.horizontal .knob { top: 50%; transform: translate(-50%, -50%); }
+  .slider.small .knob { --knob: 40px; }
+  .slider .tag { position: absolute; left: 10px; top: 8px; font-size: 12px; color: var(--muted); pointer-events: none; }
+  .slider .val { position: absolute; right: 10px; top: 8px; font-size: 15px; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .slider.vertical .val { left: 0; right: 0; text-align: center; top: 28px; }
+  .slider .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+
+  details { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  summary { cursor: pointer; color: var(--muted); }
+  .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 12px 0; }
+  .settings label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .settings.no-esc .esc { display: none; }
+  .settings select, .settings input[type=number] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px; width: 100%; }
+  .settings .check { flex-direction: row; align-items: center; gap: 8px; }
+  .settings .check input { width: 20px; height: 20px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .keys { color: var(--muted); font-size: 13px; }
+  kbd { background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+
+  @media (max-width: 560px) {
+    .slider.vertical { width: 80px; }
+    .telemetry { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .tile { padding: 6px 8px; }
+    .tile .value { font-size: 16px; }
+    .slider.small { height: 84px; }
+    .slider.small .knob { top: 60%; }
+    #arm, #stop { font-size: 16px; padding: 16px 8px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Libelle <small id="devName" data-i18n="notConnected">not connected</small></h1>
+  <button id="connect" class="primary" data-i18n="connect">Connect</button>
+  <button id="lang" title="Language">DE</button>
+</header>
+<div id="banner"></div>
+
+<section class="telemetry">
+  <div class="tile" id="tBat"><div class="label" data-i18n="battery">Battery</div><div class="value" id="vBat">–</div></div>
+  <div class="tile"><div class="label" data-i18n="front">Front motor</div><div class="value" id="vFront">–</div></div>
+  <div class="tile"><div class="label" data-i18n="rear">Rear motor</div><div class="value" id="vRear">–</div></div>
+  <div class="tile"><div class="label" data-i18n="rudder">Rudder</div><div class="value" id="vRudder">–</div></div>
+  <div class="tile" id="tLink"><div class="label" data-i18n="link">Link</div><div class="value" id="vLink">–</div></div>
+</section>
+<div class="badges" id="badges"></div>
+
+<section class="controls">
+  <div class="slider vertical" id="sThrottle">
+    <div class="fill"></div><div class="knob"></div>
+    <span class="tag" data-i18n="throttle">Throttle</span><span class="val">0</span>
+  </div>
+  <div class="center">
+    <div class="arm-row">
+      <button id="arm" disabled data-i18n="arm">ARM</button>
+      <button id="stop" data-i18n="stop">STOP</button>
+    </div>
+    <div class="hint" id="hint"></div>
+    <div class="slider horizontal" id="sRudder">
+      <div class="mid"></div><div class="fill"></div><div class="knob"></div>
+      <span class="tag" data-i18n="rudder">Rudder</span><span class="val">0</span>
+    </div>
+    <div class="slider horizontal small" id="sPitch">
+      <div class="mid"></div><div class="fill"></div><div class="knob"></div>
+      <span class="tag" data-i18n="pitch">Balance rear ← → front</span><span class="val">0</span>
+    </div>
+  </div>
+</section>
+
+<details>
+  <summary data-i18n="settings">Settings (stored on the device)</summary>
+  <div class="settings">
+    <label><span data-i18n="minDuty">Motor start duty %</span><input type="number" id="cMinDuty" min="0" max="80"></label>
+    <label><span data-i18n="rampMs">Soft start 0→100 % (ms)</span><input type="number" id="cRampMs" min="0" max="5000" step="50"></label>
+    <label><span data-i18n="rudderMax">Rudder limit %</span><input type="number" id="cRudderMax" min="0" max="100"></label>
+    <label><span data-i18n="rudderTrim">Rudder trim %</span><input type="number" id="cRudderTrim" min="-50" max="50"></label>
+    <label class="check"><input type="checkbox" id="cRudderInvert"><span data-i18n="rudderInvert">Invert rudder</span></label>
+    <label><span data-i18n="motorMode">Motor output</span>
+      <select id="cMotorMode">
+        <option value="0" data-i18n="modeDriver">H-bridge / MOSFET (20 kHz PWM)</option>
+        <option value="1" data-i18n="modeEsc">Servo ESC (pulses)</option>
+      </select></label>
+    <label class="esc"><span data-i18n="escHz">ESC pulse rate (Hz)</span><input type="number" id="cEscHz" min="50" max="400" step="10"></label>
+    <label class="esc"><span data-i18n="escMinUs">ESC off pulse (µs)</span><input type="number" id="cEscMinUs" min="500" max="1500" step="10"></label>
+    <label class="esc"><span data-i18n="escMaxUs">ESC full pulse (µs)</span><input type="number" id="cEscMaxUs" min="1500" max="2500" step="10"></label>
+  </div>
+  <div class="row">
+    <button id="cfgApply" disabled data-i18n="apply">Apply</button>
+    <button id="cfgSave" disabled data-i18n="save">Save on device</button>
+    <button id="cfgDefaults" disabled data-i18n="defaults">Defaults</button>
+    <span class="hint" id="cfgInfo"></span>
+  </div>
+</details>
+
+<details>
+  <summary data-i18n="help">Keyboard and safety</summary>
+  <p class="keys">
+    <kbd>W</kbd>/<kbd>S</kbd> <span data-i18n="kThrottle">throttle ±5 %</span> ·
+    <kbd>A</kbd>/<kbd>D</kbd> <span data-i18n="kRudder">rudder while held</span> ·
+    <kbd>Q</kbd>/<kbd>E</kbd> <span data-i18n="kPitch">balance ±10</span> ·
+    <kbd>Enter</kbd> <span data-i18n="kArm">arm / disarm</span> ·
+    <kbd>Space</kbd> <span data-i18n="kStop">STOP</span>
+  </p>
+  <p class="keys" data-i18n="safety">Motors only start when armed with throttle at 0. They stop at once on STOP, on disconnect,
+    when this page is hidden, or 0.5 s after the last control packet.</p>
+</details>
+
+<script>
+const UUID = {
+  service:   '4c69626c-0001-4e8f-a3c1-6f7d2b9e5a10',
+  control:   '4c69626c-0002-4e8f-a3c1-6f7d2b9e5a10',
+  telemetry: '4c69626c-0003-4e8f-a3c1-6f7d2b9e5a10',
+  config:    '4c69626c-0004-4e8f-a3c1-6f7d2b9e5a10',
+};
+const ST = { connected: 1, armed: 2, failsafe: 4, lowbat: 8, cutoff: 16, fault: 32, noVbat: 64 };
+const SEND_MS = 50;
+
+const T = {
+  en: {
+    notConnected: 'not connected', connect: 'Connect', disconnect: 'Disconnect', connecting: 'Connecting…',
+    battery: 'Battery', front: 'Front motor', rear: 'Rear motor', rudder: 'Rudder', link: 'Link',
+    throttle: 'Throttle', pitch: 'Balance rear ← → front', arm: 'ARM', disarm: 'DISARM', stop: 'STOP',
+    settings: 'Settings (stored on the device)', minDuty: 'Motor start duty %', rampMs: 'Soft start 0→100 % (ms)',
+    rudderMax: 'Rudder limit %', rudderTrim: 'Rudder trim %', rudderInvert: 'Invert rudder',
+    motorMode: 'Motor output', modeDriver: 'H-bridge / MOSFET (20 kHz PWM)', modeEsc: 'Servo ESC (pulses)',
+    escHz: 'ESC pulse rate (Hz)', escMinUs: 'ESC off pulse (µs)', escMaxUs: 'ESC full pulse (µs)',
+    apply: 'Apply', save: 'Save on device', defaults: 'Defaults', help: 'Keyboard and safety',
+    kThrottle: 'throttle ±5 %', kRudder: 'rudder while held', kPitch: 'balance ±10', kArm: 'arm / disarm', kStop: 'STOP',
+    safety: 'Motors only start when armed with throttle at 0. They stop at once on STOP, on disconnect, when this page is hidden, or 0.5 s after the last control packet.',
+    noBt: 'Web Bluetooth is not available here. Use Chrome or Edge on a computer or Android phone (page via https or a local file). On iPhone use the Bluefy browser.',
+    bArmed: 'armed', bDisarmed: 'disarmed', bFailsafe: 'failsafe', bLowbat: 'battery low', bCutoff: 'battery cutoff – reset board',
+    bFault: 'driver fault', bNoVbat: 'no battery sense', hThrottleFirst: 'Throttle to 0 first, then arm.',
+    hWaiting: 'Armed on this page, waiting for the board (throttle 0?)', cfgApplied: 'applied', cfgSaved: 'saved', perSec: '/s',
+  },
+  de: {
+    notConnected: 'nicht verbunden', connect: 'Verbinden', disconnect: 'Trennen', connecting: 'Verbinde…',
+    battery: 'Akku', front: 'Motor vorne', rear: 'Motor hinten', rudder: 'Seitenruder', link: 'Verbindung',
+    throttle: 'Gas', pitch: 'Balance hinten ← → vorne', arm: 'SCHARF', disarm: 'SICHERN', stop: 'STOPP',
+    settings: 'Einstellungen (im Gerät gespeichert)', minDuty: 'Motor-Anlauf-Tastgrad %', rampMs: 'Sanftanlauf 0→100 % (ms)',
+    rudderMax: 'Ruder-Begrenzung %', rudderTrim: 'Ruder-Trimm %', rudderInvert: 'Ruder umkehren',
+    motorMode: 'Motor-Ausgang', modeDriver: 'H-Brücke / MOSFET (20 kHz PWM)', modeEsc: 'Servo-Regler (Impulse)',
+    escHz: 'Regler-Impulsrate (Hz)', escMinUs: 'Regler Impuls aus (µs)', escMaxUs: 'Regler Impuls voll (µs)',
+    apply: 'Übernehmen', save: 'Im Gerät speichern', defaults: 'Standardwerte', help: 'Tastatur und Sicherheit',
+    kThrottle: 'Gas ±5 %', kRudder: 'Ruder solange gedrückt', kPitch: 'Balance ±10', kArm: 'scharf / sichern', kStop: 'STOPP',
+    safety: 'Die Motoren starten nur, wenn mit Gas auf 0 scharf geschaltet wurde. Sie stoppen sofort bei STOPP, bei Verbindungsabbruch, wenn diese Seite verdeckt ist oder 0.5 s nach dem letzten Steuerpaket.',
+    noBt: 'Web Bluetooth ist hier nicht verfügbar. Chrome oder Edge auf Computer oder Android verwenden (Seite über https oder als lokale Datei). Auf dem iPhone den Browser Bluefy verwenden.',
+    bArmed: 'scharf', bDisarmed: 'gesichert', bFailsafe: 'Failsafe', bLowbat: 'Akku schwach', bCutoff: 'Akku-Abschaltung – Board neu starten',
+    bFault: 'Treiberfehler', bNoVbat: 'keine Akkumessung', hThrottleFirst: 'Zuerst Gas auf 0, dann scharf schalten.',
+    hWaiting: 'Auf der Seite scharf, warte auf das Board (Gas auf 0?)', cfgApplied: 'übernommen', cfgSaved: 'gespeichert', perSec: '/s',
+  },
+};
+let lang = 'en';
+try { lang = localStorage.getItem('libelle-lang') || 'en'; } catch (e) {}
+const t = key => (T[lang] && T[lang][key]) || T.en[key] || key;
+
+const $ = id => document.getElementById(id);
+const state = { throttle: 0, rudder: 0, pitch: 0, arm: false };
+let device = null, chControl = null, chConfig = null, sendTimer = null, writing = false;
+let lastTelemetry = null, lastCount = null, lastCountTime = 0, linkRate = null;
+
+// ---- Sliders: pointer-driven, multi-touch safe ----
+function makeSlider(el, { min, max, vertical = false, springBack = false, relative = false, onChange }) {
+  const knob = el.querySelector('.knob'), fill = el.querySelector('.fill'), val = el.querySelector('.val');
+  const bipolar = min < 0;
+  let value = 0, drag = null;
+  const span = () => vertical ? el.clientHeight : el.clientWidth;
+  function frac(v) { return (v - min) / (max - min); }
+  function render() {
+    const f = frac(value);
+    if (vertical) {
+      knob.style.bottom = `calc(var(--knob) / 2 + (100% - var(--knob)) * ${f})`;
+      Object.assign(fill.style, { left: 0, right: 0, bottom: 0, height: `${f * 100}%` });
+    } else {
+      knob.style.left = `calc(var(--knob) / 2 + (100% - var(--knob)) * ${f})`;
+      const z = bipolar ? frac(0) : 0;
+      Object.assign(fill.style, { top: 0, bottom: 0, left: `${Math.min(f, z) * 100}%`, width: `${Math.abs(f - z) * 100}%` });
+    }
+    val.textContent = value;
+  }
+  function set(v, emit = true) {
+    const nv = Math.round(Math.max(min, Math.min(max, v)));
+    if (nv === value) return;
+    value = nv; render();
+    if (emit) onChange(value);
+  }
+  function absolute(e) {
+    const r = el.getBoundingClientRect();
+    const f = vertical ? 1 - (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+    return min + f * (max - min);
+  }
+  el.addEventListener('pointerdown', e => {
+    el.setPointerCapture(e.pointerId);
+    drag = { pos: vertical ? e.clientY : e.clientX, start: value };
+    if (!relative) set(absolute(e));
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag || !el.hasPointerCapture(e.pointerId)) return;
+    if (relative) {
+      const d = (vertical ? drag.pos - e.clientY : e.clientX - drag.pos) / span();
+      set(drag.start + d * (max - min) * 1.2);
+    } else set(absolute(e));
+  });
+  const release = () => { drag = null; if (springBack) set(0); };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+  render();
+  return { set, get value() { return value; } };
+}
+
+const sThrottle = makeSlider($('sThrottle'), { min: 0, max: 100, vertical: true, relative: true,
+  onChange: v => { state.throttle = v; } });
+const sRudder = makeSlider($('sRudder'), { min: -100, max: 100, springBack: true,
+  onChange: v => { state.rudder = v; } });
+const sPitch = makeSlider($('sPitch'), { min: -100, max: 100, relative: true,
+  onChange: v => { state.pitch = v; } });
+
+// ---- BLE ----
+async function connect() {
+  if (device && device.gatt.connected) { stop(); device.gatt.disconnect(); return; }
+  try {
+    $('connect').textContent = t('connecting');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'Libelle' }, { services: [UUID.service] }],
+      optionalServices: [UUID.service],
+    });
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(UUID.service);
+    chControl = await svc.getCharacteristic(UUID.control);
+    chConfig = await svc.getCharacteristic(UUID.config);
+    const chTel = await svc.getCharacteristic(UUID.telemetry);
+    chTel.addEventListener('characteristicvaluechanged', e => onTelemetry(e.target.value));
+    await chTel.startNotifications();
+    stop();
+    sendTimer = setInterval(sendControl, SEND_MS);
+    await readConfig();
+  } catch (e) {
+    console.warn(e);
+    if (device && device.gatt.connected) device.gatt.disconnect();
+  }
+  updateUi();
+}
+
+function onDisconnected() {
+  clearInterval(sendTimer); sendTimer = null;
+  chControl = chConfig = null; lastTelemetry = null; lastCount = null; linkRate = null;
+  stop(false);
+  updateUi();
+}
+
+async function sendControl() {
+  if (!chControl || writing) return;
+  writing = true;
+  const b = new Uint8Array([state.throttle, state.rudder & 0xff, state.pitch & 0xff, state.arm ? 1 : 0]);
+  try {
+    if (chControl.writeValueWithoutResponse) await chControl.writeValueWithoutResponse(b);
+    else await chControl.writeValue(b);
+  } catch (e) { /* GATT busy, next tick retries */ }
+  writing = false;
+}
+
+function onTelemetry(dv) {
+  lastTelemetry = {
+    mv: dv.getUint16(0, true), front: dv.getUint8(2), rear: dv.getUint8(3),
+    rudder: dv.getInt8(4), status: dv.getUint8(5), count: dv.getUint16(6, true),
+  };
+  const now = performance.now();
+  if (lastCount === null || now - lastCountTime >= 1000) {
+    if (lastCount !== null) linkRate = Math.round(((lastTelemetry.count - lastCount + 65536) % 65536) * 1000 / (now - lastCountTime));
+    lastCount = lastTelemetry.count; lastCountTime = now;
+  }
+  updateUi();
+}
+
+async function readConfig() {
+  if (!chConfig) return;
+  const dv = await chConfig.readValue();
+  const cfg = Object.fromEntries(new TextDecoder().decode(dv).split(';').map(p => p.split('=')));
+  $('cMinDuty').value = cfg.minDuty ?? '';
+  $('cRampMs').value = cfg.rampMs ?? '';
+  $('cRudderMax').value = cfg.rudderMax ?? '';
+  $('cRudderTrim').value = cfg.rudderTrim ?? '';
+  $('cRudderInvert').checked = cfg.rudderInvert === '1';
+  $('cMotorMode').value = cfg.motorMode ?? '0';
+  $('cEscHz').value = cfg.escHz ?? '';
+  $('cEscMinUs').value = cfg.escMinUs ?? '';
+  $('cEscMaxUs').value = cfg.escMaxUs ?? '';
+  showEscFields();
+  $('devName').textContent = `${device.name || 'Libelle'} · fw ${cfg.fw || '?'}`;
+}
+
+async function writeConfig(text, info) {
+  if (!chConfig) return;
+  try {
+    await chConfig.writeValue(new TextEncoder().encode(text));
+    await readConfig();
+    $('cfgInfo').textContent = t(info);
+  } catch (e) { $('cfgInfo').textContent = e.message; }
+}
+
+function configText() {
+  return [`minDuty=${$('cMinDuty').value | 0}`, `rampMs=${$('cRampMs').value | 0}`,
+    `rudderMax=${$('cRudderMax').value | 0}`, `rudderTrim=${$('cRudderTrim').value | 0}`,
+    `rudderInvert=${$('cRudderInvert').checked ? 1 : 0}`, `motorMode=${$('cMotorMode').value}`,
+    `escHz=${$('cEscHz').value | 0}`, `escMinUs=${$('cEscMinUs').value | 0}`,
+    `escMaxUs=${$('cEscMaxUs').value | 0}`].join(';');
+}
+
+function showEscFields() {
+  document.querySelector('.settings').classList.toggle('no-esc', $('cMotorMode').value !== '1');
+}
+
+// ---- Arm / stop ----
+function stop(send = true) {
+  state.arm = false; state.throttle = 0;
+  sThrottle.set(0, false);
+  if (send) sendControl();
+  updateUi();
+}
+
+function toggleArm() {
+  if (!chControl) return;
+  if (state.arm) { stop(); return; }
+  if (state.throttle > 0) { $('hint').textContent = t('hThrottleFirst'); return; }
+  state.arm = true;
+  updateUi();
+}
+
+// ---- UI ----
+function badge(text, cls) { return `<span class="badge ${cls}">${text}</span>`; }
+
+function updateUi() {
+  const conn = !!chControl;
+  $('connect').textContent = conn ? t('disconnect') : t('connect');
+  $('connect').classList.toggle('primary', !conn);
+  if (!conn) $('devName').textContent = t('notConnected');
+  for (const id of ['arm', 'cfgApply', 'cfgSave', 'cfgDefaults']) $(id).disabled = !conn;
+  $('arm').textContent = state.arm ? t('disarm') : t('arm');
+  $('arm').classList.toggle('on', state.arm);
+
+  const tl = lastTelemetry;
+  const s = tl ? tl.status : 0;
+  $('vBat').textContent = tl && !(s & ST.noVbat) ? (tl.mv / 1000).toFixed(2) + ' V' : '–';
+  $('tBat').className = 'tile' + (s & ST.cutoff ? ' danger' : s & ST.lowbat ? ' warn' : '');
+  $('vFront').textContent = tl ? tl.front + ' %' : '–';
+  $('vRear').textContent = tl ? tl.rear + ' %' : '–';
+  $('vRudder').textContent = tl ? tl.rudder + ' %' : '–';
+  $('vLink').textContent = linkRate !== null ? linkRate + t('perSec') : '–';
+  $('tLink').className = 'tile' + (linkRate !== null && linkRate < 10 ? ' warn' : '');
+
+  let b = '';
+  if (tl) {
+    b += s & ST.armed ? badge(t('bArmed'), 'danger') : badge(t('bDisarmed'), 'ok');
+    if (s & ST.failsafe) b += badge(t('bFailsafe'), 'warn');
+    if (s & ST.lowbat) b += badge(t('bLowbat'), 'warn');
+    if (s & ST.cutoff) b += badge(t('bCutoff'), 'danger');
+    if (s & ST.fault) b += badge(t('bFault'), 'danger');
+    if (s & ST.noVbat) b += badge(t('bNoVbat'), '');
+  }
+  $('badges').innerHTML = b;
+
+  const hint = $('hint');
+  if (state.arm && tl && !(s & ST.armed)) hint.textContent = t('hWaiting');
+  else if (hint.textContent === t('hWaiting') || state.throttle === 0) hint.textContent = '';
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $('lang').textContent = lang === 'en' ? 'DE' : 'EN';
+  updateUi();
+}
+
+// ---- Keyboard ----
+const held = new Set();
+function keyRudder() { sRudder.set((held.has('d') ? 100 : 0) - (held.has('a') ? 100 : 0)); }
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const map = { ArrowUp: 'w', ArrowDown: 's', ArrowLeft: 'a', ArrowRight: 'd' };
+  const key = map[k] || k;
+  if (key === ' ') { e.preventDefault(); stop(); return; }
+  if (key === 'Enter') { e.preventDefault(); if (!e.repeat) toggleArm(); return; }
+  if (key === 'w') { e.preventDefault(); sThrottle.set(sThrottle.value + 5); }
+  if (key === 's') { e.preventDefault(); sThrottle.set(sThrottle.value - 5); }
+  if (key === 'q') sPitch.set(sPitch.value - 10);
+  if (key === 'e') sPitch.set(sPitch.value + 10);
+  if (key === 'a' || key === 'd') { e.preventDefault(); held.add(key); keyRudder(); }
+});
+window.addEventListener('keyup', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const key = { ArrowLeft: 'a', ArrowRight: 'd' }[k] || k;
+  if (held.delete(key)) keyRudder();
+});
+
+// ---- Wiring ----
+$('connect').onclick = connect;
+$('arm').onclick = toggleArm;
+$('stop').onclick = () => stop();
+$('cfgApply').onclick = () => writeConfig(configText(), 'cfgApplied');
+$('cfgSave').onclick = () => writeConfig(configText() + ';save', 'cfgSaved');
+$('cfgDefaults').onclick = () => writeConfig('defaults', 'cfgApplied');
+$('cMotorMode').onchange = showEscFields;
+$('lang').onclick = () => {
+  lang = lang === 'en' ? 'de' : 'en';
+  try { localStorage.setItem('libelle-lang', lang); } catch (e) {}
+  applyLang();
+};
+document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+window.addEventListener('blur', () => { held.clear(); keyRudder(); });
+
+if (!navigator.bluetooth) {
+  $('banner').style.display = 'block';
+  $('banner').dataset.i18n = 'noBt';
+  $('connect').disabled = true;
+}
+showEscFields();
+applyLang();
+</script>
+</body>
+</html>
